@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Babyphone WebRTC</title>
+</head>
+<body>
+<h1>Babyphone</h1>
+<video id="localVideo" autoplay muted playsinline></video>
+<video id="remoteVideo" autoplay playsinline></video>
+<button onclick="start(true)">Start Senden</button>
+<button onclick="start(false)">Start Empfangen</button>
+<script>
+const ws = new WebSocket(location.origin.replace(/^http/, 'ws'));
+let pc;
+
+async function start(isSender) {
+  pc = new RTCPeerConnection();
+
+  pc.ontrack = e => {
+    document.getElementById('remoteVideo').srcObject = e.streams[0];
+  };
+
+  pc.onicecandidate = e => {
+    if (e.candidate) ws.send(JSON.stringify({ candidate: e.candidate }));
+  };
+
+  if (isSender) {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    document.getElementById('localVideo').srcObject = stream;
+    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    ws.send(JSON.stringify({ sdp: pc.localDescription }));
+  }
+
+  ws.onmessage = async msg => {
+    const data = JSON.parse(msg.data);
+    if (data.sdp) {
+      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      if (data.sdp.type === 'offer') {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        document.getElementById('localVideo').srcObject = stream;
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ sdp: pc.localDescription }));
+      }
+    } else if (data.candidate) {
+      await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+    }
+  };
+}
+</script>
+</body>
+</html>

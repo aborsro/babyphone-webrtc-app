@@ -1,9 +1,4 @@
-# 📹 babyphone-webrtc-app
-
-Einfaches Node.js + WebRTC Babyphone-Projekt – z. B. iPad im Schlafzimmer streamt Video ans Handy.
-
-## 🚀 Lokal starten
-
-```bash
-npm install
-npm start
+# babyphone-webrtc-app
+Einfaches Node.js + WebRTC Babyphone-Demo für Render.
+- Ein Gerät klickt „Start Senden“ (z. B. iPad im Schlafzimmer)
+- Anderes Gerät klickt „Start Empfangen“ (z. B. Handy)

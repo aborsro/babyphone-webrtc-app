@@ -28,16 +28,13 @@ async function start(role) {
   pc = new RTCPeerConnection();
   console.log("[DEBUG] PeerConnection erstellt:", pc);
 
-  // Zusätzliche State-Handler für mehr Einblick
-  pc.oniceconnectionstatechange = () => {
+  // State‑Handler
+  pc.oniceconnectionstatechange = () =>
     console.log("[DEBUG] ICE connection state:", pc.iceConnectionState);
-  };
-  pc.onsignalingstatechange = () => {
+  pc.onsignalingstatechange = () =>
     console.log("[DEBUG] Signaling state:", pc.signalingState);
-  };
-  pc.onconnectionstatechange = () => {
+  pc.onconnectionstatechange = () =>
     console.log("[DEBUG] Connection state:", pc.connectionState);
-  };
 
   pc.ontrack = e => {
     console.log("[DEBUG] ontrack ausgelöst, Stream erhalten:", e.streams[0]);
@@ -46,16 +43,11 @@ async function start(role) {
 
   pc.onicecandidate = e => {
     if (e.candidate) {
-      console.log("[DEBUG] ICE-Kandidat gefunden:", e.candidate);
+      console.log("[DEBUG] ICE‑Kandidat gefunden:", e.candidate);
       ws.send(JSON.stringify({ candidate: e.candidate }));
     } else {
-      console.log("[DEBUG] ICE gathering abgeschlossen (kein Kandidat mehr).");
+      console.log("[DEBUG] ICE gathering abgeschlossen.");
     }
-  };
-
-  // Logge, wenn der WebSocket verbunden ist
-  ws.onopen = () => {
-    console.log("[DEBUG] WebSocket verbunden, warte auf Nachrichten...");
   };
 
   if (role === 'sender') {
@@ -71,7 +63,7 @@ async function start(role) {
       const offer = await pc.createOffer();
       console.log("[DEBUG] Offer erstellt:", offer);
       await pc.setLocalDescription(offer);
-      console.log("[DEBUG] Lokale Beschreibung gesetzt:", pc.localDescription);
+      console.log("[DEBUG] Lokale Beschreibung (Offer) gesetzt");
       ws.send(JSON.stringify({ sdp: pc.localDescription }));
       console.log("[DEBUG] Offer über WebSocket gesendet");
     } catch (err) {
@@ -79,41 +71,51 @@ async function start(role) {
     }
   }
 
+  // Wichtig: nur EIN Mal setzen, nicht pro start()‑Aufruf
+  if (!ws._hasMessageHandler) {
     ws.onmessage = async msg => {
-    let text = msg.data;
-    if (msg.data instanceof Blob) {
+      let text;
+      if (msg.data instanceof Blob) {
         text = await msg.data.text();
-    }
-    log("[DEBUG] Nachricht als Text: " + text);
-    let data;
-    try {
-        data = JSON.parse(text);
-    } catch (e) {
-        log("[DEBUG] Ungültige Nachricht, wird ignoriert");
-        return;
-    }
+      } else {
+        text = msg.data;
+      }
+      console.log("[DEBUG] Nachricht vom WebSocket empfangen:", text);
 
-    if (data.sdp) {
-        log("[DEBUG] SDP-Nachricht empfangen: " + JSON.stringify(data.sdp));
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.warn("[DEBUG] Ungültige Nachricht, wird ignoriert");
+        return;
+      }
+
+      if (data.sdp) {
+        console.log("[DEBUG] SDP-Nachricht empfangen:", data.sdp);
         await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        log("[DEBUG] Remote Description gesetzt: " + pc.remoteDescription.type);
+        console.log("[DEBUG] Remote Description gesetzt:", pc.remoteDescription?.type);
 
         if (data.sdp.type === 'offer' && role === 'receiver') {
-        log("[DEBUG] Erstelle Answer als Empfänger...");
-        const answer = await pc.createAnswer();
-        log("[DEBUG] Answer erstellt");
-        await pc.setLocalDescription(answer);
-        log("[DEBUG] Lokale Beschreibung (Answer) gesetzt");
-        ws.send(JSON.stringify({ sdp: pc.localDescription }));
-        log("[DEBUG] Answer über WebSocket gesendet");
+          console.log("[DEBUG] Erstelle Answer als Empfänger...");
+          const answer = await pc.createAnswer();
+          console.log("[DEBUG] Answer erstellt");
+          await pc.setLocalDescription(answer);
+          console.log("[DEBUG] Lokale Beschreibung (Answer) gesetzt");
+          ws.send(JSON.stringify({ sdp: pc.localDescription }));
+          console.log("[DEBUG] Answer über WebSocket gesendet");
         }
-    } else if (data.candidate) {
-        log("[DEBUG] ICE-Kandidat empfangen");
-        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-        log("[DEBUG] ICE-Kandidat hinzugefügt");
-    }
+      } else if (data.candidate) {
+        console.log("[DEBUG] ICE-Kandidat empfangen:", data.candidate);
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+          console.log("[DEBUG] ICE-Kandidat hinzugefügt");
+        } catch (err) {
+          console.warn("[DEBUG] ICE-Kandidat konnte nicht hinzugefügt werden:", err);
+        }
+      }
     };
-
+    ws._hasMessageHandler = true;
+  }
 }
 </script>
 </body>

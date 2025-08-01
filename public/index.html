@@ -28,6 +28,17 @@ async function start(role) {
   pc = new RTCPeerConnection();
   console.log("[DEBUG] PeerConnection erstellt:", pc);
 
+  // Zusätzliche State-Handler für mehr Einblick
+  pc.oniceconnectionstatechange = () => {
+    console.log("[DEBUG] ICE connection state:", pc.iceConnectionState);
+  };
+  pc.onsignalingstatechange = () => {
+    console.log("[DEBUG] Signaling state:", pc.signalingState);
+  };
+  pc.onconnectionstatechange = () => {
+    console.log("[DEBUG] Connection state:", pc.connectionState);
+  };
+
   pc.ontrack = e => {
     console.log("[DEBUG] ontrack ausgelöst, Stream erhalten:", e.streams[0]);
     document.getElementById('remoteVideo').srcObject = e.streams[0];
@@ -40,6 +51,11 @@ async function start(role) {
     } else {
       console.log("[DEBUG] ICE gathering abgeschlossen (kein Kandidat mehr).");
     }
+  };
+
+  // Logge, wenn der WebSocket verbunden ist
+  ws.onopen = () => {
+    console.log("[DEBUG] WebSocket verbunden, warte auf Nachrichten...");
   };
 
   if (role === 'sender') {
@@ -63,31 +79,40 @@ async function start(role) {
     }
   }
 
-  ws.onmessage = async msg => {
-  try {
-    let text;
+    ws.onmessage = async msg => {
+    let text = msg.data;
     if (msg.data instanceof Blob) {
-      text = await msg.data.text();  // Blob in Text umwandeln
-    } else {
-      text = msg.data;
+        text = await msg.data.text();
     }
-    console.debug("[DEBUG] Nachricht als Text:", text);
-    const data = JSON.parse(text);
+    log("[DEBUG] Nachricht als Text: " + text);
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        log("[DEBUG] Ungültige Nachricht, wird ignoriert");
+        return;
+    }
 
     if (data.sdp) {
-      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-      if (data.sdp.type === 'offer' && role === 'receiver') {
+        log("[DEBUG] SDP-Nachricht empfangen: " + JSON.stringify(data.sdp));
+        await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        log("[DEBUG] Remote Description gesetzt: " + pc.remoteDescription.type);
+
+        if (data.sdp.type === 'offer' && role === 'receiver') {
+        log("[DEBUG] Erstelle Answer als Empfänger...");
         const answer = await pc.createAnswer();
+        log("[DEBUG] Answer erstellt");
         await pc.setLocalDescription(answer);
+        log("[DEBUG] Lokale Beschreibung (Answer) gesetzt");
         ws.send(JSON.stringify({ sdp: pc.localDescription }));
-      }
+        log("[DEBUG] Answer über WebSocket gesendet");
+        }
     } else if (data.candidate) {
-      await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+        log("[DEBUG] ICE-Kandidat empfangen");
+        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+        log("[DEBUG] ICE-Kandidat hinzugefügt");
     }
-  } catch (e) {
-    console.error("[DEBUG] Fehler beim Verarbeiten der Nachricht:", e);
-  }
-};
+    };
 
 }
 </script>

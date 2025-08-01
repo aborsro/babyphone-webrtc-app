@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>WebRTC Minimalbeispiel mit Logs</title>
+</head>
+<body>
+  <h2>WebRTC Test</h2>
+  <video id="localVideo" autoplay muted playsinline width="240"></video>
+  <video id="remoteVideo" autoplay playsinline width="240"></video>
+  <br/>
+  <button onclick="start('sender')">Starte als Sender</button>
+  <button onclick="start('receiver')">Starte als Empfänger</button>
+  <pre id="log"></pre>
+
+<script>
+let pc;
+let ws;
+
+function log(msg) {
+  console.log(msg);
+  document.getElementById('log').textContent += msg + '\n';
+}
+
+async function start(role) {
+  log(`[DEBUG] Starte als ${role}`);
+
+  ws = new WebSocket('wss://ws.ifelse.io'); // Öffentlicher Testserver
+
+  ws.onopen = () => {
+    log("[DEBUG] WebSocket verbunden, warte auf Nachrichten...");
+  };
+
+ws.onmessage = async msg => {
+  let text = msg.data;
+  if (msg.data instanceof Blob) {
+    text = await msg.data.text();
+  }
+  log("[DEBUG] Nachricht als Text: " + text);
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    log("[DEBUG] Ungültige Nachricht, wird ignoriert");
+    return;
+  }
+
+  if (data.sdp) {
+    log("[DEBUG] SDP-Nachricht empfangen: " + JSON.stringify(data.sdp));
+    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    log("[DEBUG] Remote Description gesetzt: " + pc.remoteDescription.type);
+
+    if (data.sdp.type === 'offer' && role === 'receiver') {
+      log("[DEBUG] Erstelle Answer als Empfänger...");
+      const answer = await pc.createAnswer();
+      log("[DEBUG] Answer erstellt");
+      await pc.setLocalDescription(answer);
+      log("[DEBUG] Lokale Beschreibung (Answer) gesetzt");
+      ws.send(JSON.stringify({ sdp: pc.localDescription }));
+      log("[DEBUG] Answer über WebSocket gesendet");
+    }
+  } else if (data.candidate) {
+    log("[DEBUG] ICE-Kandidat empfangen");
+    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+    log("[DEBUG] ICE-Kandidat hinzugefügt");
+  }
+};
+
+
+  pc = new RTCPeerConnection();
+  log("[DEBUG] PeerConnection erstellt");
+
+  pc.oniceconnectionstatechange = () => {
+    log("[DEBUG] ICE connection state: " + pc.iceConnectionState);
+  };
+  pc.onsignalingstatechange = () => {
+    log("[DEBUG] Signaling state: " + pc.signalingState);
+  };
+  pc.onconnectionstatechange = () => {
+    log("[DEBUG] Connection state: " + pc.connectionState);
+  };
+
+  pc.ontrack = e => {
+    log("[DEBUG] ontrack ausgelöst, Stream erhalten");
+    document.getElementById('remoteVideo').srcObject = e.streams[0];
+  };
+
+  pc.onicecandidate = e => {
+    if (e.candidate) {
+      log("[DEBUG] ICE-Kandidat gefunden");
+      ws.send(JSON.stringify({ candidate: e.candidate }));
+    } else {
+      log("[DEBUG] ICE gathering abgeschlossen (kein Kandidat mehr).");
+    }
+  };
+
+  if (role === 'sender') {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      log("[DEBUG] Lokaler Stream erhalten");
+      document.getElementById('localVideo').srcObject = stream;
+      stream.getTracks().forEach(track => {
+        log("[DEBUG] Track hinzugefügt");
+        pc.addTrack(track, stream);
+      });
+
+      const offer = await pc.createOffer();
+      log("[DEBUG] Offer erstellt");
+      await pc.setLocalDescription(offer);
+      log("[DEBUG] Lokale Beschreibung gesetzt");
+      ws.send(JSON.stringify({ sdp: pc.localDescription }));
+      log("[DEBUG] Offer über WebSocket gesendet");
+    } catch (err) {
+      console.error(err);
+      log("[DEBUG] Fehler beim Zugriff auf Kamera oder Erstellen des Offers: " + err);
+    }
+  }
+}
+</script>
+</body>
+</html>

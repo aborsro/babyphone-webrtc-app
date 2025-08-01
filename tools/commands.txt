@@ -1,0 +1,4 @@
+cd Z:\xfer\Projects\GitHub\babyphone-webrtc-app
+node init
+node start
+node --inspect server.js

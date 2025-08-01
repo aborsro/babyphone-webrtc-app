@@ -1,0 +1,122 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Babyphone WebRTC</title>
+</head>
+<body>
+<h1>Babyphone</h1>
+<video id="localVideo" autoplay muted playsinline></video>
+<video id="remoteVideo" autoplay playsinline></video>
+<button onclick="start('sender')">Start Senden</button>
+<button onclick="start('receiver')">Start Empfangen</button>
+
+<script>
+console.log("[DEBUG] Initialisiere Babyphone WebRTC App");
+
+const ws = new WebSocket(location.origin.replace(/^http/, 'ws'));
+let pc;
+
+ws.onopen = () => console.log("[DEBUG] WebSocket verbunden");
+ws.onerror = e => console.error("[DEBUG] WebSocket Fehler:", e);
+ws.onclose = () => console.log("[DEBUG] WebSocket Verbindung geschlossen");
+
+async function start(role) {
+  console.log(`[DEBUG] Starte als ${role}`);
+
+  pc = new RTCPeerConnection();
+  console.log("[DEBUG] PeerConnection erstellt:", pc);
+
+  // State‑Handler
+  pc.oniceconnectionstatechange = () =>
+    console.log("[DEBUG] ICE connection state:", pc.iceConnectionState);
+  pc.onsignalingstatechange = () =>
+    console.log("[DEBUG] Signaling state:", pc.signalingState);
+  pc.onconnectionstatechange = () =>
+    console.log("[DEBUG] Connection state:", pc.connectionState);
+
+  pc.ontrack = e => {
+    console.log("[DEBUG] ontrack ausgelöst, Stream erhalten:", e.streams[0]);
+    document.getElementById('remoteVideo').srcObject = e.streams[0];
+  };
+
+  pc.onicecandidate = e => {
+    if (e.candidate) {
+      console.log("[DEBUG] ICE‑Kandidat gefunden:", e.candidate);
+      ws.send(JSON.stringify({ candidate: e.candidate }));
+    } else {
+      console.log("[DEBUG] ICE gathering abgeschlossen.");
+    }
+  };
+
+  if (role === 'sender') {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      console.log("[DEBUG] Lokaler Stream erhalten:", stream);
+      document.getElementById('localVideo').srcObject = stream;
+      stream.getTracks().forEach(track => {
+        console.log("[DEBUG] Track hinzugefügt:", track);
+        pc.addTrack(track, stream);
+      });
+
+      const offer = await pc.createOffer();
+      console.log("[DEBUG] Offer erstellt:", offer);
+      await pc.setLocalDescription(offer);
+      console.log("[DEBUG] Lokale Beschreibung (Offer) gesetzt");
+      ws.send(JSON.stringify({ sdp: pc.localDescription }));
+      console.log("[DEBUG] Offer über WebSocket gesendet");
+    } catch (err) {
+      console.error("[DEBUG] Fehler beim Zugriff auf Kamera oder Erstellen des Offers:", err);
+    }
+  }
+
+  // Wichtig: nur EIN Mal setzen, nicht pro start()‑Aufruf
+  if (!ws._hasMessageHandler) {
+    ws.onmessage = async msg => {
+      let text;
+      if (msg.data instanceof Blob) {
+        text = await msg.data.text();
+      } else {
+        text = msg.data;
+      }
+      console.log("[DEBUG] Nachricht vom WebSocket empfangen:", text);
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.warn("[DEBUG] Ungültige Nachricht, wird ignoriert");
+        return;
+      }
+
+      if (data.sdp) {
+        console.log("[DEBUG] SDP-Nachricht empfangen:", data.sdp);
+        await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        console.log("[DEBUG] Remote Description gesetzt:", pc.remoteDescription?.type);
+
+        if (data.sdp.type === 'offer' && role === 'receiver') {
+          console.log("[DEBUG] Erstelle Answer als Empfänger...");
+          const answer = await pc.createAnswer();
+          console.log("[DEBUG] Answer erstellt");
+          await pc.setLocalDescription(answer);
+          console.log("[DEBUG] Lokale Beschreibung (Answer) gesetzt");
+          ws.send(JSON.stringify({ sdp: pc.localDescription }));
+          console.log("[DEBUG] Answer über WebSocket gesendet");
+        }
+      } else if (data.candidate) {
+        console.log("[DEBUG] ICE-Kandidat empfangen:", data.candidate);
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+          console.log("[DEBUG] ICE-Kandidat hinzugefügt");
+        } catch (err) {
+          console.warn("[DEBUG] ICE-Kandidat konnte nicht hinzugefügt werden:", err);
+        }
+      }
+    };
+    ws._hasMessageHandler = true;
+  }
+}
+</script>
+</body>
+</html>

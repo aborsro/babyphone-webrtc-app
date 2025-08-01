@@ -135,7 +135,36 @@ async function startLocalStreamAndOffer() {
   if (localOfferSent) return;
   localOfferSent = true;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      console.log("[DEBUG] Gefundene Kameras:", videoDevices);
+
+      let constraints;
+      if (videoDevices.length > 1) {
+        console.log("[DEBUG] Verwende zweite Kamera:", videoDevices[1].label);
+        constraints = { video: { deviceId: { exact: videoDevices[1].deviceId } } };
+      } else {
+        console.log("[DEBUG] Nur eine Kamera gefunden, verwende Standardkamera");
+        constraints = { video: true };
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log("[DEBUG] Lokaler Stream erhalten:", stream);
+      document.getElementById('localVideo').srcObject = stream;
+      stream.getTracks().forEach(track => {
+        console.log("[DEBUG] Track hinzugefügt:", track);
+        pc.addTrack(track, stream);
+      });
+
+      const offer = await pc.createOffer();
+      console.log("[DEBUG] Offer erstellt:", offer);
+      await pc.setLocalDescription(offer);
+      console.log("[DEBUG] Lokale Beschreibung gesetzt:", pc.localDescription);
+      ws.send(JSON.stringify({ sdp: pc.localDescription }));
+      console.log("[DEBUG] Offer über WebSocket gesendet");
+    } catch (err) {
+      console.error("[DEBUG] Fehler beim Zugriff auf Kamera oder Erstellen des Offers:", err);
+}
     console.log("[DEBUG] Lokaler Stream erhalten:", stream);
     document.getElementById('localVideo').srcObject = stream;
     stream.getTracks().forEach(track => {

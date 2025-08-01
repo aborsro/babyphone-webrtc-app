@@ -64,35 +64,31 @@ async function start(role) {
   }
 
   ws.onmessage = async msg => {
-    console.log("[DEBUG] Nachricht vom WebSocket empfangen:", msg.data);
-    const text = await msg.data.text();
-    console.log("[DEBUG] Nachricht-Text:", text);
-    const data = JSON.parse(text);
-	
-    try {
-      if (data.sdp) {
-        console.log("[DEBUG] SDP erhalten:", data.sdp);
-        await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        console.log("[DEBUG] RemoteDescription gesetzt:", data.sdp.type);
-
-        if (data.sdp.type === 'offer' && role === 'receiver') {
-          console.log("[DEBUG] Empfänger erstellt Answer...");
-          const answer = await pc.createAnswer();
-          console.log("[DEBUG] Answer erstellt:", answer);
-          await pc.setLocalDescription(answer);
-          console.log("[DEBUG] Lokale Beschreibung gesetzt:", pc.localDescription);
-          ws.send(JSON.stringify({ sdp: pc.localDescription }));
-          console.log("[DEBUG] Answer über WebSocket gesendet");
-        }
-      } else if (data.candidate) {
-        console.log("[DEBUG] ICE-Kandidat empfangen:", data.candidate);
-        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-        console.log("[DEBUG] ICE-Kandidat hinzugefügt");
-      }
-    } catch (e) {
-      console.error("[DEBUG] Fehler beim Verarbeiten der Nachricht:", e);
+  try {
+    let text;
+    if (msg.data instanceof Blob) {
+      text = await msg.data.text();  // Blob in Text umwandeln
+    } else {
+      text = msg.data;
     }
-  };
+    console.debug("[DEBUG] Nachricht als Text:", text);
+    const data = JSON.parse(text);
+
+    if (data.sdp) {
+      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      if (data.sdp.type === 'offer' && role === 'receiver') {
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ sdp: pc.localDescription }));
+      }
+    } else if (data.candidate) {
+      await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+    }
+  } catch (e) {
+    console.error("[DEBUG] Fehler beim Verarbeiten der Nachricht:", e);
+  }
+};
+
 }
 </script>
 </body>

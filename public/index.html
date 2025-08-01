@@ -21,7 +21,7 @@
     padding: 15px 30px;
     margin: 10px;
     width: 90%;
-    max-width: 300px;
+    max-width: $400px;
     border: none;
     border-radius: 10px;
     background-color: #4CAF50;
@@ -42,9 +42,9 @@
 <body>
 
 <h1>Babyphone WebRTC</h1>
-<button onclick="start('sender')">📷 Sender starten</button>
-<button onclick="start('receiver')">👀 Empfänger starten</button>
-<button onclick="start('both')">🔄 Beides starten</button>
+<button onclick="start('sender')">📷 Sender</button>
+<button onclick="start('receiver')">👀 Empfänger</button>
+<button onclick="start('both')">🔄 Beides</button>
 
 <video id="localVideo" autoplay muted playsinline></video>
 <video id="remoteVideo" autoplay playsinline></video>

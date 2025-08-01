@@ -164,22 +164,7 @@ async function startLocalStreamAndOffer() {
       console.log("[DEBUG] Offer über WebSocket gesendet");
     } catch (err) {
       console.error("[DEBUG] Fehler beim Zugriff auf Kamera oder Erstellen des Offers:", err);
-}
-    console.log("[DEBUG] Lokaler Stream erhalten:", stream);
-    document.getElementById('localVideo').srcObject = stream;
-    stream.getTracks().forEach(track => {
-      console.log("[DEBUG] Track hinzugefügt:", track);
-      pc.addTrack(track, stream);
-    });
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    console.log("[DEBUG] Offer erstellt und gesetzt:", offer);
-    ws.send(JSON.stringify({ sdp: pc.localDescription }));
-    console.log("[DEBUG] Offer über WebSocket gesendet");
-  } catch (err) {
-    console.error("[DEBUG] Fehler beim Zugriff auf Kamera oder Erstellen des Offers:", err);
-  }
+    }
 }
 </script>
 </body>

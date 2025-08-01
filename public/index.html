@@ -34,6 +34,9 @@ async function start(role) {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     ws.send(JSON.stringify({ sdp: pc.localDescription }));
+	console.log(`Sender started`);
+  } else {
+  	console.log(`Receiver started`);
   }
 
   ws.onmessage = async msg => {

@@ -3,48 +3,41 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Babyphone WebRTC App</title>
+<title>Babyphone WebRTC App mit Kamera-Wahl</title>
 <style>
   body {
     font-family: sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 20px;
-    background: #f4f4f4;
+    text-align: center;
+    background: #f0f0f0;
   }
-  h1 {
-    margin-bottom: 20px;
-  }
-  button {
-    font-size: 1.5em;
-    padding: 15px 30px;
+  select, button {
+    font-size: 24px;
+    padding: 10px;
     margin: 10px;
     width: 90%;
-    max-width: $400px;
-    border: none;
-    border-radius: 10px;
-    background-color: #4CAF50;
-    color: white;
-  }
-  button:hover {
-    background-color: #45a049;
+    max-width: 400px;
   }
   video {
-    margin-top: 20px;
-    width: 90%;
-    max-width: 400px;
-    border: 2px solid #333;
-    border-radius: 10px;
+    width: 45%;
+    margin: 5px;
+    background: black;
   }
 </style>
 </head>
 <body>
 
-<h1>Babyphone WebRTC</h1>
-<button onclick="start('sender')">ðŸ“· Sender</button>
-<button onclick="start('receiver')">ðŸ‘€ EmpfÃ¤nger</button>
-<button onclick="start('both')">ðŸ”„ Beides</button>
+<h2>Babyphone WebRTC App</h2>
+
+<select id="cameraSelect">
+  <option>Loading cameras...</option>
+</select>
+
+<br>
+
+<button id="startSender">?? Start als Sender</button>
+<button id="startReceiver">?? Start als Empfänger</button>
+
+<br><br>
 
 <video id="localVideo" autoplay muted playsinline></video>
 <video id="remoteVideo" autoplay playsinline></video>
@@ -52,13 +45,48 @@
 <script>
 console.log("[DEBUG] Initialisiere Babyphone WebRTC App");
 
-const ws = new WebSocket(location.origin.replace(/^http/, 'ws'));
+let selectedDeviceId = null;
 let pc;
-let localOfferSent = false;
+const ws = new WebSocket(location.origin.replace(/^http/, 'ws'));
 
 ws.onopen = () => console.log("[DEBUG] WebSocket verbunden");
 ws.onerror = e => console.error("[DEBUG] WebSocket Fehler:", e);
 ws.onclose = () => console.log("[DEBUG] WebSocket Verbindung geschlossen");
+
+// Kameras abfragen & Dropdown füllen
+async function loadCameras() {
+  try {
+    await navigator.mediaDevices.getUserMedia({ video: true });
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+    const select = document.getElementById('cameraSelect');
+    select.innerHTML = '';
+
+    videoDevices.forEach(device => {
+      const option = document.createElement('option');
+      option.value = device.deviceId;
+      option.text = device.label || `Camera ${select.length + 1}`;
+      select.appendChild(option);
+    });
+
+    if (videoDevices.length > 0) {
+      selectedDeviceId = videoDevices[0].deviceId;
+    }
+
+    select.onchange = () => {
+      selectedDeviceId = select.value;
+      console.log("[DEBUG] Gewählte Kamera:", selectedDeviceId);
+    };
+
+    console.log("[DEBUG] Kameras geladen:", videoDevices);
+
+  } catch (err) {
+    console.error("[DEBUG] Fehler beim Laden der Kameras:", err);
+  }
+}
+
+// Sofort laden
+loadCameras();
 
 async function start(role) {
   console.log(`[DEBUG] Starte als ${role}`);
@@ -66,15 +94,12 @@ async function start(role) {
   pc = new RTCPeerConnection();
   console.log("[DEBUG] PeerConnection erstellt:", pc);
 
-  pc.oniceconnectionstatechange = () =>
-    console.log("[DEBUG] ICE connection state:", pc.iceConnectionState);
-  pc.onsignalingstatechange = () =>
-    console.log("[DEBUG] Signaling state:", pc.signalingState);
-  pc.onconnectionstatechange = () =>
-    console.log("[DEBUG] Connection state:", pc.connectionState);
+  pc.oniceconnectionstatechange = () => console.log("[DEBUG] ICE connection state:", pc.iceConnectionState);
+  pc.onsignalingstatechange = () => console.log("[DEBUG] Signaling state:", pc.signalingState);
+  pc.onconnectionstatechange = () => console.log("[DEBUG] Connection state:", pc.connectionState);
 
   pc.ontrack = e => {
-    console.log("[DEBUG] ontrack ausgelÃ¶st, Stream erhalten:", e.streams[0]);
+    console.log("[DEBUG] ontrack, Stream erhalten:", e.streams[0]);
     document.getElementById('remoteVideo').srcObject = e.streams[0];
   };
 
@@ -87,72 +112,16 @@ async function start(role) {
     }
   };
 
-  ws.onmessage = async msg => {
-    let text = msg.data instanceof Blob ? await msg.data.text() : msg.data;
-    console.log("[DEBUG] Nachricht als Text:", text);
-
-    let data;
-    try { data = JSON.parse(text); } catch (e) {
-      console.log("[DEBUG] UngÃ¼ltige Nachricht, ignoriert");
-      return;
-    }
-
-    if (data.sdp) {
-      console.log("[DEBUG] SDP-Nachricht empfangen:", JSON.stringify(data.sdp));
-      const remoteDesc = new RTCSessionDescription(data.sdp);
-      await pc.setRemoteDescription(remoteDesc);
-      console.log("[DEBUG] Remote Description gesetzt:", pc.remoteDescription.type);
-
-      if (remoteDesc.type === 'offer') {
-        console.log("[DEBUG] Empfange Offer â†’ Erstelle Answer...");
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        console.log("[DEBUG] Answer erstellt und gesetzt:", answer);
-        ws.send(JSON.stringify({ sdp: pc.localDescription }));
-        console.log("[DEBUG] Answer Ã¼ber WebSocket gesendet");
-      } else if (remoteDesc.type === 'answer') {
-        console.log("[DEBUG] Empfange Answer, Verbindungsaufbau lÃ¤uft");
-      }
-    } else if (data.candidate) {
-      console.log("[DEBUG] ICE-Kandidat empfangen:", data.candidate);
-      await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-      console.log("[DEBUG] ICE-Kandidat hinzugefÃ¼gt");
-    }
-  };
-
-  // Sender oder beides: local stream holen und Offer erzeugen
-  if (role === 'sender' || role === 'both') {
-    await startLocalStreamAndOffer();
-  }
-
-  // Receiver oder beides: auch auf Offers warten
-  if ((role === 'receiver' || role === 'both') && !localOfferSent) {
-    console.log("[DEBUG] Bereit Offers vom anderen zu empfangen...");
-  }
-}
-
-async function startLocalStreamAndOffer() {
-  if (localOfferSent) return;
-  localOfferSent = true;
-  try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      console.log("[DEBUG] Gefundene Kameras:", videoDevices);
-
-      let constraints;
-      if (videoDevices.length > 1) {
-        console.log("[DEBUG] Verwende zweite Kamera:", videoDevices[1].label);
-        constraints = { video: { deviceId: { exact: videoDevices[1].deviceId } } };
-      } else {
-        console.log("[DEBUG] Nur eine Kamera gefunden, verwende Standardkamera");
-        constraints = { video: true };
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  if (role === 'sender') {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: selectedDeviceId } }
+      });
       console.log("[DEBUG] Lokaler Stream erhalten:", stream);
       document.getElementById('localVideo').srcObject = stream;
+
       stream.getTracks().forEach(track => {
-        console.log("[DEBUG] Track hinzugefÃ¼gt:", track);
+        console.log("[DEBUG] Track hinzugefügt:", track);
         pc.addTrack(track, stream);
       });
 
@@ -161,11 +130,50 @@ async function startLocalStreamAndOffer() {
       await pc.setLocalDescription(offer);
       console.log("[DEBUG] Lokale Beschreibung gesetzt:", pc.localDescription);
       ws.send(JSON.stringify({ sdp: pc.localDescription }));
-      console.log("[DEBUG] Offer Ã¼ber WebSocket gesendet");
+      console.log("[DEBUG] Offer über WebSocket gesendet");
     } catch (err) {
-      console.error("[DEBUG] Fehler beim Zugriff auf Kamera oder Erstellen des Offers:", err);
+      console.error("[DEBUG] Fehler beim Zugriff auf Kamera oder Offer:", err);
     }
+  }
+
+  ws.onmessage = async msg => {
+    let text = msg.data;
+    if (msg.data instanceof Blob) text = await msg.data.text();
+    console.log("[DEBUG] Nachricht als Text:", text);
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.log("[DEBUG] Ungültige Nachricht, wird ignoriert");
+      return;
+    }
+
+    if (data.sdp) {
+      console.log("[DEBUG] SDP empfangen:", data.sdp.type);
+      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      console.log("[DEBUG] Remote Description gesetzt:", pc.remoteDescription?.type);
+
+      if (data.sdp.type === 'offer' && role === 'receiver') {
+        console.log("[DEBUG] Erstelle Answer als Empfänger...");
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        console.log("[DEBUG] Answer gesetzt:", pc.localDescription?.type);
+        ws.send(JSON.stringify({ sdp: pc.localDescription }));
+        console.log("[DEBUG] Answer gesendet");
+      }
+    } else if (data.candidate) {
+      console.log("[DEBUG] ICE-Kandidat empfangen");
+      await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+      console.log("[DEBUG] ICE-Kandidat hinzugefügt");
+    }
+  };
 }
+
+// Buttons verbinden
+document.getElementById('startSender').onclick = () => start('sender');
+document.getElementById('startReceiver').onclick = () => start('receiver');
 </script>
+
 </body>
 </html>

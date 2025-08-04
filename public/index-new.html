@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Webcam RTC App</title>
+<style>
+  body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background: #f4f4f4;
+  }
+  h1 { margin-bottom: 20px; }
+  button {
+    font-size: 1.2em;
+    padding: 10px 20px;
+    margin: 10px;
+    border: none;
+    border-radius: 10px;
+    background-color: #4CAF50;
+    color: white;
+  }
+  button:hover { background-color: #45a049; }
+  video, canvas {
+    margin-top: 20px;
+    width: 90%;
+    max-width: 400px;
+    border: 2px solid #333;
+    border-radius: 10px;
+  }
+  /* Modal Styles */
+  #cameraModal {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6); justify-content: center; align-items: center;
+  }
+  #cameraModalContent {
+    background: #fff; padding: 20px; border-radius: 10px;
+    max-width: 300px; width: 90%;
+    display: flex; flex-direction: column; align-items: center;
+  }
+</style>
+</head>
+<body>
+
+<h1>Webcam RTC</h1>
+
+<button id="senderBtn" onclick="chooseRole('sender')">📹 Sender</button>
+<button id="receiverBtn" onclick="chooseRole('receiver')">📺 Receiver</button>
+
+<video id="localVideo" autoplay muted playsinline style="display:none;"></video>
+<video id="remoteVideo" autoplay playsinline style="display:none;"></video>
+<canvas id="senderCanvas" style="display:none;"></canvas>
+<canvas id="receiverCanvas" style="display:none;"></canvas>
+
+<!-- Modal für Kameraauswahl -->
+<div id="cameraModal">
+  <div id="cameraModalContent">
+    <h3>Kamera wählen</h3>
+    <select id="cameraSelect" style="width:100%; margin:10px 0;"></select>
+    <button onclick="confirmCameraSelection()">OK</button>
+  </div>
+</div>
+
+<script>
+console.log("[DEBUG] Initialisiere App");
+const ws = new WebSocket(location.origin.replace(/^http/, 'ws'));
+let pc;
+let localOfferSent = false;
+
+// Buttons und UI je nach Rolle anpassen
+function chooseRole(role) {
+  document.getElementById('senderBtn').style.display = role === 'sender' ? 'none' : 'inline';
+  document.getElementById('receiverBtn').style.display = role === 'receiver' ? 'none' : 'inline';
+  document.getElementById('localVideo').style.display = role === 'sender' ? 'block' : 'none';
+  document.getElementById('remoteVideo').style.display = role === 'receiver' ? 'block' : 'none';
+  document.getElementById('senderCanvas').style.display = role === 'sender' ? 'block' : 'none';
+  document.getElementById('receiverCanvas').style.display = role === 'receiver' ? 'block' : 'none';
+
+  if (role === 'sender') {
+    showCameraModal(); // Modal öffnen
+  } else {
+    start('receiver');
+  }
+}
+
+// Modal anzeigen und Kameraliste befüllen
+async function showCameraModal() {
+  await populateCameraList();
+  document.getElementById('cameraModal').style.display = 'flex';
+}
+
+// Wenn Nutzer im Modal "OK" klickt
+function confirmCameraSelection() {
+  document.getElementById('cameraModal').style.display = 'none';
+  start('sender');
+}
+
+// Kameraliste füllen
+async function populateCameraList() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    const select = document.getElementById('cameraSelect');
+    select.innerHTML = '';
+    videoDevices.forEach(device => {
+      const option = document.createElement('option');
+      option.value = device.deviceId;
+      option.text = device.label || `Kamera ${select.length + 1}`;
+      select.appendChild(option);
+    });
+  } catch (err) {
+    console.error("[DEBUG] Fehler beim Laden der Kameras:", err);
+  }
+}
+
+// Verbindung starten
+async function start(role) {
+  console.log(`[DEBUG] Starte als ${role}`);
+  pc = new RTCPeerConnection();
+
+  pc.onicecandidate = e => {
+    if (e.candidate) ws.send(JSON.stringify({ candidate: e.candidate }));
+  };
+
+  pc.ontrack = e => {
+    if (role === 'receiver') {
+      console.log("[DEBUG] Empfange Stream:", e.streams[0]);
+      document.getElementById('remoteVideo').srcObject = e.streams[0];
+    }
+  };
+
+  ws.onmessage = async msg => {
+    let text;
+    if (msg.data instanceof Blob) {
+      text = await msg.data.text();
+    } else if (typeof msg.data === 'string') {
+      text = msg.data;
+    } else {
+      console.warn("[DEBUG] Unbekannter Nachrichtentyp:", msg.data);
+      return;
+    }
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.log("[DEBUG] Ungültige JSON-Nachricht, ignoriert");
+      return;
+    }
+
+    if (data.sdp) {
+      const remoteDesc = new RTCSessionDescription(data.sdp);
+      await pc.setRemoteDescription(remoteDesc);
+      console.log("[DEBUG] Remote Description gesetzt:", pc.remoteDescription.type);
+
+      if (remoteDesc.type === 'offer') {
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ sdp: pc.localDescription }));
+      }
+    } else if (data.candidate) {
+      await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+    }
+  };
+
+  if (role === 'sender') startLocalStreamAndOffer();
+}
+
+// Lokalen Stream starten & Offer senden
+async function startLocalStreamAndOffer() {
+  if (localOfferSent) return;
+  localOfferSent = true;
+  try {
+    const selectedCameraId = document.getElementById('cameraSelect').value;
+    const constraints = selectedCameraId
+      ? { video: { deviceId: { exact: selectedCameraId } }, audio: true }
+      : { video: true, audio: true };
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    document.getElementById('localVideo').srcObject = stream;
+    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    ws.send(JSON.stringify({ sdp: pc.localDescription }));
+  } catch (err) {
+    console.error("[DEBUG] Fehler beim Zugriff auf Kamera/Mikrofon:", err);
+  }
+}
+
+// WebSocket Events
+ws.onopen = () => console.log("[DEBUG] WebSocket verbunden");
+ws.onerror = e => console.error("[DEBUG] WebSocket Fehler:", e);
+ws.onclose = () => console.log("[DEBUG] WebSocket Verbindung geschlossen");
+</script>
+
+</body>
+</html>

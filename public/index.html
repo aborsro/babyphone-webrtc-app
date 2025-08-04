@@ -214,10 +214,9 @@ async function startLocalStreamAndOffer() {
     const cameraId = select.value;
 
     let constraints = (select.options.length === 1)
-      ? { video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true }
-      : { video: { deviceId: { exact: cameraId }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true };
-	  
-	  
+      ? { video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }
+      : { video: { deviceId: { exact: cameraId }, width: { ideal: 1920 }, height: { ideal: 1080 } } };
+	    
     localStream = await navigator.mediaDevices.getUserMedia(constraints);
     document.getElementById('localVideo').srcObject = localStream;
     localStream.getTracks().forEach(track => pc.addTrack(track, localStream));

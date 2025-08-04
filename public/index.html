@@ -98,18 +98,22 @@ async function start(role) {
   };
 
 
-
 if (role === 'sender') {
     const select = document.getElementById('cameraSelect');
     select.style.display = 'block';
     await fillCameraSelect();
 
-    select.onchange = async () => {
-        console.log("[DEBUG] Kamera gewählt:", select.value);
+    if (select.options.length === 1) {
+        console.log("[DEBUG] Nur eine Kamera gefunden, starte direkt");
         await startLocalStreamAndOffer();
-    };
+    } else {
+        console.log("[DEBUG] Mehrere Kameras gefunden, warte auf Auswahl");
+        select.onchange = async () => {
+            console.log("[DEBUG] Kamera gewählt:", select.value);
+            await startLocalStreamAndOffer();
+        };
+    }
 }
-
 
 
 async function fillCameraSelect() {

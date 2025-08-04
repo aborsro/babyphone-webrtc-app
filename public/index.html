@@ -91,43 +91,35 @@ ws.onclose = () => console.log("[DEBUG] WebSocket Verbindung geschlossen");
 async function start(role) {
   console.log(`[DEBUG] Starte als ${role}`);
 
-  // UI anpassen
   const senderBtn = document.getElementById('senderBtn');
   const receiverBtn = document.getElementById('receiverBtn');
   const stopBtn = document.getElementById('stopBtn');
 
   senderBtn.disabled = true;
   receiverBtn.disabled = true;
+
+  // Klarer Text statt Fragezeichen
+  senderBtn.textContent = "?? Sender";
+  receiverBtn.textContent = "?? Empfänger";
+
   if (role === 'sender') senderBtn.classList.add('active');
   if (role === 'receiver') receiverBtn.classList.add('active');
+
   stopBtn.style.display = 'block';
 
-  // PeerConnection
   pc = new RTCPeerConnection();
-
-  pc.oniceconnectionstatechange = () =>
-    console.log("[DEBUG] ICE connection state:", pc.iceConnectionState);
-  pc.onsignalingstatechange = () =>
-    console.log("[DEBUG] Signaling state:", pc.signalingState);
-  pc.onconnectionstatechange = () =>
-    console.log("[DEBUG] Connection state:", pc.connectionState);
 
   pc.ontrack = e => {
     console.log("[DEBUG] ontrack ausgelöst, Stream erhalten:", e.streams[0]);
     document.getElementById('remoteVideo').srcObject = e.streams[0];
   };
-
   pc.onicecandidate = e => {
-    if (e.candidate) {
-      console.log("[DEBUG] ICE-Kandidat gefunden:", e.candidate);
-      ws.send(JSON.stringify({ candidate: e.candidate }));
-    }
+    if (e.candidate) ws.send(JSON.stringify({ candidate: e.candidate }));
   };
-
   ws.onmessage = async msg => {
     let text = msg.data instanceof Blob ? await msg.data.text() : msg.data;
     let data;
-    try { data = JSON.parse(text); } catch (e) { return; }
+    try { data = JSON.parse(text); } catch { return; }
 
     if (data.sdp) {
       await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
@@ -196,6 +188,10 @@ async function startLocalStreamAndOffer() {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     ws.send(JSON.stringify({ sdp: pc.localDescription }));
+
+    // Kameraauswahl ausblenden NACH Start
+    select.style.display = 'none';
+
   } catch (err) {
     console.error("[DEBUG] Fehler beim Starten:", err);
   }
@@ -204,13 +200,11 @@ async function startLocalStreamAndOffer() {
 function stopAll() {
   console.log("[DEBUG] Stoppe alles");
 
-  // Stop Streams
   if (localStream) {
     localStream.getTracks().forEach(track => track.stop());
     localStream = null;
   }
 
-  // Close PeerConnection
   if (pc) {
     pc.close();
     pc = null;
@@ -218,15 +212,22 @@ function stopAll() {
 
   localOfferSent = false;
 
-  // Reset UI
-  document.getElementById('senderBtn').disabled = false;
-  document.getElementById('receiverBtn').disabled = false;
-  document.getElementById('senderBtn').classList.remove('active');
-  document.getElementById('receiverBtn').classList.remove('active');
-  document.getElementById('cameraSelect').style.display = 'none';
-  document.getElementById('stopBtn').style.display = 'none';
+  const senderBtn = document.getElementById('senderBtn');
+  const receiverBtn = document.getElementById('receiverBtn');
+  const stopBtn = document.getElementById('stopBtn');
 
-  // Clear videos
+  senderBtn.disabled = false;
+  receiverBtn.disabled = false;
+  senderBtn.classList.remove('active');
+  receiverBtn.classList.remove('active');
+
+  // Text zurücksetzen
+  senderBtn.textContent = "?? Sender";
+  receiverBtn.textContent = "?? Empfänger";
+
+  document.getElementById('cameraSelect').style.display = 'none';
+  stopBtn.style.display = 'none';
+
   document.getElementById('localVideo').srcObject = null;
   document.getElementById('remoteVideo').srcObject = null;
 }

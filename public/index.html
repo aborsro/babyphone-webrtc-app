@@ -95,6 +95,11 @@
 </head>
 <body>
 
+<h1>robocam</h1>
+
+<video id="localVideo" autoplay muted playsinline></video>
+<video id="remoteVideo" autoplay playsinline></video>
+
 <div class="top-bar">
   <img src="favicon.ico" alt="App Icon" class="app-icon">
   <div class="buttons">
@@ -104,11 +109,6 @@
     <select id="cameraSelect" style="display:none;"></select>
   </div>
 </div>
-
-<h1>robocam</h1>
-
-<video id="localVideo" autoplay muted playsinline></video>
-<video id="remoteVideo" autoplay playsinline></video>
 
 <script>
 console.log("[DEBUG] Initialisiere Babyphone WebRTC App");
@@ -228,7 +228,25 @@ async function startLocalStreamAndOffer() {
     select.style.display = 'none';
 
   } catch (err) {
-    console.error("[DEBUG] Fehler beim Starten:", err);
+    try {
+      console.error("[DEBUG] try just video", err);
+	  let constraints = (select.options.length === 1)
+        ? { video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }
+        : { video: { deviceId: { exact: cameraId }, width: { ideal: 1920 }, height: { ideal: 1080 } } };
+	  
+      localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      document.getElementById('localVideo').srcObject = localStream;
+      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      ws.send(JSON.stringify({ sdp: pc.localDescription }));
+
+      select.style.display = 'none';
+    } catch (err) {
+      try {
+        console.error("[DEBUG] Fehler beim Starten:", err);
+	}
   }
 }
 

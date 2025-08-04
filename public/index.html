@@ -16,8 +16,8 @@
   }
   .top-bar {
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: left;
+    justify-content: left;
     gap: 10px; /* Abstand zwischen Icon und Buttons */
     flex-wrap: wrap; /* umbricht auf kleinen Bildschirmen */
     width: 100%;
@@ -97,9 +97,6 @@
 
 <h1>robocam</h1>
 
-<video id="localVideo" autoplay muted playsinline></video>
-<video id="remoteVideo" autoplay playsinline></video>
-
 <div class="top-bar">
   <img src="favicon.ico" alt="App Icon" class="app-icon">
   <div class="buttons">
@@ -109,6 +106,9 @@
     <select id="cameraSelect" style="display:none;"></select>
   </div>
 </div>
+
+<video id="localVideo" autoplay muted playsinline></video>
+<video id="remoteVideo" autoplay playsinline></video>
 
 <script>
 console.log("[DEBUG] Initialisiere Babyphone WebRTC App");
@@ -244,8 +244,8 @@ async function startLocalStreamAndOffer() {
 
       select.style.display = 'none';
     } catch (err) {
-      try {
         console.error("[DEBUG] Fehler beim Starten:", err);
+		alert("Fehler beim Starten: kein Video, kein Audio");
 	}
   }
 }

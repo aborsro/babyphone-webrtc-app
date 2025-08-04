@@ -70,8 +70,8 @@
 <h1>robocam</h1>
 
 <button id="senderBtn" onclick="start('sender')">&#x1F4F9; Sender</button>
-<button id="receiverBtn" onclick="start('receiver')">&#4A90E2; Empfänger</button>
-<button id="stopBtn" onclick="stopAll()" style="display:none;">&#D32F2F; Stoppen</button>
+<button id="receiverBtn" onclick="start('receiver')">&#x4A90E2; Receiver</button>
+<button id="stopBtn" onclick="stopAll()" style="display:none;">&#xD32F2F; Stop</button>
 
 <select id="cameraSelect" style="display:none;"></select>
 
@@ -101,8 +101,8 @@ async function start(role) {
   receiverBtn.disabled = true;
 
   // Klarer Text statt Fragezeichen
-  senderBtn.textContent = "?? Sender";
-  receiverBtn.textContent = "?? Empfänger";
+  senderBtn.textContent = "&#x1F4F9; Sender";
+  receiverBtn.textContent = "&#x4A90E2; Empfänger";
 
   if (role === 'sender') senderBtn.classList.add('active');
   if (role === 'receiver') receiverBtn.classList.add('active');
@@ -224,8 +224,8 @@ function stopAll() {
   receiverBtn.classList.remove('active');
 
   // Text zurücksetzen
-  senderBtn.textContent = "?? Sender";
-  receiverBtn.textContent = "?? Empfänger";
+  senderBtn.textContent = "&#x1F4F9; Sender";
+  receiverBtn.textContent = "&#x4A90E2; Empfänger";
 
   document.getElementById('cameraSelect').style.display = 'none';
   stopBtn.style.display = 'none';

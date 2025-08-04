@@ -97,14 +97,19 @@ async function start(role) {
     }
   };
 
-  if (role === 'sender') {
-    document.getElementById('cameraSelect').style.display = 'block';
+
+
+if (role === 'sender') {
+    const select = document.getElementById('cameraSelect');
+    select.style.display = 'block';
     await fillCameraSelect();
-    await startLocalStreamAndOffer();
-  } else if (role === 'receiver') {
-    document.getElementById('cameraSelect').style.display = 'none';
-  }
+
+    select.onchange = async () => {
+        console.log("[DEBUG] Kamera gewählt:", select.value);
+        await startLocalStreamAndOffer();
+    };
 }
+
 
 async function fillCameraSelect() {
   const select = document.getElementById('cameraSelect');

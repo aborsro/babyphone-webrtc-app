@@ -14,29 +14,44 @@
     background: linear-gradient(to bottom, #f4f4f4, #e0e0e0);
     min-height: 100vh;
   }
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px; /* Abstand zwischen Icon und Buttons */
+    flex-wrap: wrap; /* umbricht auf kleinen Bildschirmen */
+    width: 100%;
+    max-width: 600px;
+    margin-bottom: 10px;
+  }
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .app-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+  }
   h1 {
     margin: 10px;
-    font-size: 2em;
+    font-size: 1.8em;
     color: #333;
   }
- .app-icon {
-      width: 60px;
-      height: 60px;
-      border-radius: 12px;
-      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
-  }
   button, select {
-    font-size: 1.3em;
-    padding: 12px 25px;
-    margin: 8px;
-    width: 90%;
-    max-width: 400px;
+    font-size: 1.0em;
+    padding: 8px 16px;
+    margin: 0;
+    width: auto;
+    max-width: none;
     border: none;
     border-radius: 10px;
     background-color: #4CAF50;
     color: white;
     cursor: pointer;
-    transition: background-color 0.3s;
+    transition: background-color 0.3s, transform 0.1s;
   }
   button:hover:enabled {
     background-color: #45a049;
@@ -47,9 +62,10 @@
   }
   button.active {
     background-color: #2196F3;
+    transform: scale(1.05);
   }
   #stopBtn {
-    background-color: #f44336; /* rot */
+    background-color: #f44336;
   }
   #stopBtn:hover:enabled {
     background-color: #d32f2f;
@@ -61,19 +77,23 @@
     border: 2px solid #333;
     border-radius: 10px;
     background: black;
+    object-fit: cover;
   }
 </style>
 </head>
 <body>
 
-<img src="favicon.ico" alt="App Icon" class="app-icon">
+<div class="top-bar">
+  <img src="favicon.ico" alt="App Icon" class="app-icon">
+  <div class="buttons">
+    <button id="senderBtn" onclick="start('sender')">Sender</button>
+    <button id="receiverBtn" onclick="start('receiver')">Receiver</button>
+    <button id="stopBtn" onclick="stopAll()" style="display:none;">Stop</button>
+    <select id="cameraSelect" style="display:none;"></select>
+  </div>
+</div>
+
 <h1>robocam</h1>
-
-<button id="senderBtn" onclick="start('sender')">Sender</button>
-<button id="receiverBtn" onclick="start('receiver')">Receiver</button>
-<button id="stopBtn" onclick="stopAll()" style="display:none;">Stop</button>
-
-<select id="cameraSelect" style="display:none;"></select>
 
 <video id="localVideo" autoplay muted playsinline></video>
 <video id="remoteVideo" autoplay playsinline></video>
@@ -90,6 +110,25 @@ ws.onopen = () => console.log("[DEBUG] WebSocket verbunden");
 ws.onerror = e => console.error("[DEBUG] WebSocket Fehler:", e);
 ws.onclose = () => console.log("[DEBUG] WebSocket Verbindung geschlossen");
 
+ws.onmessage = handleMessage;
+
+async function handleMessage(msg) {
+  let text = msg.data instanceof Blob ? await msg.data.text() : msg.data;
+  let data;
+  try { data = JSON.parse(text); } catch { return; }
+
+  if (data.sdp) {
+    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    if (data.sdp.type === 'offer') {
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      ws.send(JSON.stringify({ sdp: pc.localDescription }));
+    }
+  } else if (data.candidate) {
+    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+  }
+}
+
 async function start(role) {
   console.log(`[DEBUG] Starte als ${role}`);
 
@@ -100,7 +139,6 @@ async function start(role) {
   senderBtn.disabled = true;
   receiverBtn.disabled = true;
 
-  // Klarer Text statt Fragezeichen
   senderBtn.textContent = "Sender";
   receiverBtn.textContent = "Receiver";
 
@@ -117,22 +155,6 @@ async function start(role) {
   };
   pc.onicecandidate = e => {
     if (e.candidate) ws.send(JSON.stringify({ candidate: e.candidate }));
-  };
-  ws.onmessage = async msg => {
-    let text = msg.data instanceof Blob ? await msg.data.text() : msg.data;
-    let data;
-    try { data = JSON.parse(text); } catch { return; }
-
-    if (data.sdp) {
-      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-      if (data.sdp.type === 'offer') {
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        ws.send(JSON.stringify({ sdp: pc.localDescription }));
-      }
-    } else if (data.candidate) {
-      await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-    }
   };
 
   if (role === 'sender') {
@@ -191,7 +213,6 @@ async function startLocalStreamAndOffer() {
     await pc.setLocalDescription(offer);
     ws.send(JSON.stringify({ sdp: pc.localDescription }));
 
-    // Kameraauswahl ausblenden NACH Start
     select.style.display = 'none';
 
   } catch (err) {
@@ -223,7 +244,6 @@ function stopAll() {
   senderBtn.classList.remove('active');
   receiverBtn.classList.remove('active');
 
-  // Text zurücksetzen
   senderBtn.textContent = "Sender";
   receiverBtn.textContent = "Receiver";
 
@@ -234,7 +254,6 @@ function stopAll() {
   document.getElementById('remoteVideo').srcObject = null;
 }
 </script>
-
 
 </body>
 </html>

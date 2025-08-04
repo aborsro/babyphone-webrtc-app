@@ -71,14 +71,26 @@
     background-color: #d32f2f;
   }
   video {
-    margin-top: 15px;
-    width: 90%;
-    max-width: 400px;
-    border: 2px solid #333;
+    margin-top: 1px;
+     border: 2px solid #333;
     border-radius: 10px;
     background: black;
     object-fit: cover;
   }
+
+#remoteVideo {
+  width: 100%;
+  max-width: 100%; /* volle Breite */
+}
+
+#localVideo {
+  width: 200px;       /* kleiner Vorschaubild */
+  position: absolute; /* über dem großen Video */
+  top: 20px;
+  right: 20px;
+  border: 2px solid white;
+}
+  
 </style>
 </head>
 <body>
@@ -202,9 +214,10 @@ async function startLocalStreamAndOffer() {
     const cameraId = select.value;
 
     let constraints = (select.options.length === 1)
-      ? { video: true }
-      : { video: { deviceId: { exact: cameraId } } };
-
+      ? { video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }
+      : { video: { deviceId: { exact: cameraId }, width: { ideal: 1920 }, height: { ideal: 1080 } } };
+	  
+	  
     localStream = await navigator.mediaDevices.getUserMedia(constraints);
     document.getElementById('localVideo').srcObject = localStream;
     localStream.getTracks().forEach(track => pc.addTrack(track, localStream));

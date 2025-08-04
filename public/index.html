@@ -11,81 +11,70 @@
     flex-direction: column;
     align-items: center;
     padding: 20px;
-    background: #f4f4f4;
+    background: linear-gradient(to bottom, #f4f4f4, #e0e0e0);
+    min-height: 100vh;
   }
   h1 {
-    margin-bottom: 20px;
-  }
-  button {
-    font-size: 1.5em;
-    padding: 15px 30px;
     margin: 10px;
+    font-size: 2em;
+    color: #333;
+  }
+  .logo {
+    width: 80px;
+    margin-bottom: 10px;
+  }
+  button, select {
+    font-size: 1.3em;
+    padding: 12px 25px;
+    margin: 8px;
     width: 90%;
     max-width: 400px;
     border: none;
     border-radius: 10px;
     background-color: #4CAF50;
     color: white;
-    transition: background-color 0.3s ease;
+    cursor: pointer;
+    transition: background-color 0.3s;
   }
-  button:hover {
+  button:hover:enabled {
     background-color: #45a049;
   }
   button:disabled {
-    background-color: #2e7d32;
-    cursor: default;
+    cursor: not-allowed;
+    opacity: 0.8;
   }
-  .receiver-active {
-    background-color: #1976d2 !important; /* blau */
+  button.active {
+    background-color: #2196F3;
   }
-  select {
-    font-size: 1em;
-    padding: 10px;
-    margin: 10px;
-    max-width: 400px;
-    width: 90%;
-    border-radius: 8px;
+  #stopBtn {
+    background-color: #f44336; /* rot */
   }
-  #videos {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 20px;
-    width: 100%;
+  #stopBtn:hover:enabled {
+    background-color: #d32f2f;
   }
   video {
-    flex: 1 1 300px;
+    margin-top: 15px;
+    width: 90%;
     max-width: 400px;
     border: 2px solid #333;
     border-radius: 10px;
-    transition: opacity 0.5s ease;
-  }
-  video.hidden {
-    opacity: 0;
-    pointer-events: none;
-    visibility: hidden;
-  }
-  #noVideoText {
-    margin-top: 40px;
-    font-size: 1.2em;
-    color: #555;
-    display: block;
+    background: black;
   }
 </style>
 </head>
 <body>
 
+<img src="https://dummyimage.com/80x80/4CAF50/ffffff.png&text=B" alt="Logo" class="logo" />
 <h1>Babyphone WebRTC</h1>
-<button id="senderBtn" onclick="start('sender')">?? Sender</button>
-<select id="cameraSelect" style="display:none" onchange="changeCamera()"></select>
-<button id="receiverBtn" onclick="start('receiver')">?? Empfänger</button>
-<button onclick="stopAll()">?? Stopp</button>
 
-<div id="videos">
-  <video id="localVideo" autoplay muted playsinline class="hidden"></video>
-  <video id="remoteVideo" autoplay playsinline class="hidden"></video>
-</div>
-<div id="noVideoText">Kein Video aktiv</div>
+<button id="senderBtn" onclick="start('sender')">?? Sender</button>
+<button id="receiverBtn" onclick="start('receiver')">?? Empfänger</button>
+<button id="stopBtn" onclick="stopAll()" style="display:none;">?? Stoppen</button>
+
+<select id="cameraSelect" style="display:none;"></select>
+
+<video id="localVideo" autoplay muted playsinline></video>
+<video id="remoteVideo" autoplay playsinline></video>
 
 <script>
 console.log("[DEBUG] Initialisiere Babyphone WebRTC App");
@@ -94,7 +83,6 @@ const ws = new WebSocket(location.origin.replace(/^http/, 'ws'));
 let pc;
 let localOfferSent = false;
 let localStream;
-let currentCameraId = null;
 
 ws.onopen = () => console.log("[DEBUG] WebSocket verbunden");
 ws.onerror = e => console.error("[DEBUG] WebSocket Fehler:", e);
@@ -105,115 +93,80 @@ async function start(role) {
 
   const senderBtn = document.getElementById('senderBtn');
   const receiverBtn = document.getElementById('receiverBtn');
-  const cameraSelect = document.getElementById('cameraSelect');
-  const localVideo = document.getElementById('localVideo');
-  const remoteVideo = document.getElementById('remoteVideo');
-  const noVideoText = document.getElementById('noVideoText');
+  const stopBtn = document.getElementById('stopBtn');
 
-  senderBtn.disabled = (role === 'sender');
-  receiverBtn.disabled = (role === 'receiver');
-  receiverBtn.classList.toggle('receiver-active', role === 'receiver');
+  senderBtn.disabled = true;
+  receiverBtn.disabled = true;
 
-  // Videos je nach Rolle anzeigen
-  if (role === 'sender') {
-    localVideo.classList.remove('hidden');
-    remoteVideo.classList.add('hidden');
-    noVideoText.style.display = 'none';
-    cameraSelect.style.display = 'block';
-    await populateCameraSelect();
-  } else if (role === 'receiver') {
-    localVideo.classList.add('hidden');
-    remoteVideo.classList.remove('hidden');
-    noVideoText.style.display = 'none';
-    cameraSelect.style.display = 'none';
-  }
+  // Klarer Text statt Fragezeichen
+  senderBtn.textContent = "?? Sender";
+  receiverBtn.textContent = "?? Empfänger";
+
+  if (role === 'sender') senderBtn.classList.add('active');
+  if (role === 'receiver') receiverBtn.classList.add('active');
+
+  stopBtn.style.display = 'block';
 
   pc = new RTCPeerConnection();
-  console.log("[DEBUG] PeerConnection erstellt:", pc);
-
-  pc.oniceconnectionstatechange = () =>
-    console.log("[DEBUG] ICE connection state:", pc.iceConnectionState);
-  pc.onsignalingstatechange = () =>
-    console.log("[DEBUG] Signaling state:", pc.signalingState);
-  pc.onconnectionstatechange = () =>
-    console.log("[DEBUG] Connection state:", pc.connectionState);
 
   pc.ontrack = e => {
     console.log("[DEBUG] ontrack ausgelöst, Stream erhalten:", e.streams[0]);
-    remoteVideo.srcObject = e.streams[0];
+    document.getElementById('remoteVideo').srcObject = e.streams[0];
   };
-
   pc.onicecandidate = e => {
-    if (e.candidate) {
-      console.log("[DEBUG] ICE-Kandidat gefunden:", e.candidate);
-      ws.send(JSON.stringify({ candidate: e.candidate }));
-    } else {
-      console.log("[DEBUG] ICE gathering abgeschlossen.");
-    }
+    if (e.candidate) ws.send(JSON.stringify({ candidate: e.candidate }));
   };
-
   ws.onmessage = async msg => {
     let text = msg.data instanceof Blob ? await msg.data.text() : msg.data;
-    console.log("[DEBUG] Nachricht als Text:", text);
-
     let data;
-    try { data = JSON.parse(text); } catch (e) {
-      console.log("[DEBUG] Ungültige Nachricht, ignoriert");
-      return;
-    }
+    try { data = JSON.parse(text); } catch { return; }
 
     if (data.sdp) {
-      console.log("[DEBUG] SDP-Nachricht empfangen:", JSON.stringify(data.sdp));
-      const remoteDesc = new RTCSessionDescription(data.sdp);
-      await pc.setRemoteDescription(remoteDesc);
-      console.log("[DEBUG] Remote Description gesetzt:", pc.remoteDescription.type);
-
-      if (remoteDesc.type === 'offer') {
-        console.log("[DEBUG] Empfange Offer ? Erstelle Answer...");
+      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      if (data.sdp.type === 'offer') {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         ws.send(JSON.stringify({ sdp: pc.localDescription }));
       }
     } else if (data.candidate) {
-      console.log("[DEBUG] ICE-Kandidat empfangen:", data.candidate);
       await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
     }
   };
 
   if (role === 'sender') {
-    await startLocalStreamAndOffer();
+    const select = document.getElementById('cameraSelect');
+    select.style.display = 'block';
+    await fillCameraSelect();
+
+    if (select.options.length === 1) {
+      console.log("[DEBUG] Nur eine Kamera gefunden – starte direkt");
+      await startLocalStreamAndOffer();
+    } else {
+      select.onchange = async () => {
+        console.log("[DEBUG] Kamera gewählt:", select.value);
+        await startLocalStreamAndOffer();
+      };
+    }
+  }
+
+  if (role === 'receiver' && !localOfferSent) {
+    console.log("[DEBUG] Bereit Offers vom anderen zu empfangen...");
   }
 }
 
-async function populateCameraSelect() {
+async function fillCameraSelect() {
   const devices = await navigator.mediaDevices.enumerateDevices();
   const videoDevices = devices.filter(d => d.kind === 'videoinput');
-  const cameraSelect = document.getElementById('cameraSelect');
-  cameraSelect.innerHTML = '';
+  console.log("[DEBUG] Gefundene Kameras:", videoDevices);
 
+  const select = document.getElementById('cameraSelect');
+  select.innerHTML = '';
   videoDevices.forEach(device => {
     const option = document.createElement('option');
     option.value = device.deviceId;
-    option.text = device.label || `Kamera ${cameraSelect.length + 1}`;
-    cameraSelect.appendChild(option);
+    option.text = device.label || `Kamera ${select.length + 1}`;
+    select.appendChild(option);
   });
-
-  currentCameraId = videoDevices[0]?.deviceId || null;
-
-  if (videoDevices.length === 1) {
-    console.log("[DEBUG] Nur eine Kamera gefunden, starte direkt");
-    cameraSelect.style.display = 'none';
-  }
-
-  await changeCamera();
-}
-
-async function changeCamera() {
-  const cameraSelect = document.getElementById('cameraSelect');
-  currentCameraId = cameraSelect.value;
-  if (pc && currentCameraId) {
-    await startLocalStreamAndOffer();
-  }
 }
 
 async function startLocalStreamAndOffer() {
@@ -221,52 +174,65 @@ async function startLocalStreamAndOffer() {
   localOfferSent = true;
 
   try {
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-    }
+    const select = document.getElementById('cameraSelect');
+    const cameraId = select.value;
 
-    const constraints = { video: { deviceId: currentCameraId ? { exact: currentCameraId } : undefined } };
+    let constraints = (select.options.length === 1)
+      ? { video: true }
+      : { video: { deviceId: { exact: cameraId } } };
+
     localStream = await navigator.mediaDevices.getUserMedia(constraints);
     document.getElementById('localVideo').srcObject = localStream;
-
-    localStream.getTracks().forEach(track => {
-      pc.addTrack(track, localStream);
-    });
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     ws.send(JSON.stringify({ sdp: pc.localDescription }));
-    console.log("[DEBUG] Offer erstellt und gesendet");
+
+    // Kameraauswahl ausblenden NACH Start
+    select.style.display = 'none';
+
   } catch (err) {
-    console.error("[DEBUG] Fehler beim Zugriff auf Kamera oder Erstellen des Offers:", err);
+    console.error("[DEBUG] Fehler beim Starten:", err);
   }
 }
 
 function stopAll() {
-  const localVideo = document.getElementById('localVideo');
-  const remoteVideo = document.getElementById('remoteVideo');
-  const noVideoText = document.getElementById('noVideoText');
-  const cameraSelect = document.getElementById('cameraSelect');
+  console.log("[DEBUG] Stoppe alles");
 
   if (localStream) {
     localStream.getTracks().forEach(track => track.stop());
     localStream = null;
   }
+
   if (pc) {
     pc.close();
     pc = null;
   }
 
-  localVideo.classList.add('hidden');
-  remoteVideo.classList.add('hidden');
-  noVideoText.style.display = 'block';
-  cameraSelect.style.display = 'none';
-
-  document.getElementById('senderBtn').disabled = false;
-  document.getElementById('receiverBtn').disabled = false;
-  document.getElementById('receiverBtn').classList.remove('receiver-active');
   localOfferSent = false;
+
+  const senderBtn = document.getElementById('senderBtn');
+  const receiverBtn = document.getElementById('receiverBtn');
+  const stopBtn = document.getElementById('stopBtn');
+
+  senderBtn.disabled = false;
+  receiverBtn.disabled = false;
+  senderBtn.classList.remove('active');
+  receiverBtn.classList.remove('active');
+
+  // Text zurücksetzen
+  senderBtn.textContent = "?? Sender";
+  receiverBtn.textContent = "?? Empfänger";
+
+  document.getElementById('cameraSelect').style.display = 'none';
+  stopBtn.style.display = 'none';
+
+  document.getElementById('localVideo').srcObject = null;
+  document.getElementById('remoteVideo').srcObject = null;
 }
 </script>
+
+
 </body>
 </html>

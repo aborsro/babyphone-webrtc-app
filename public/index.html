@@ -20,9 +20,9 @@
     color: #333;
   }
  .app-icon {
-      width: 128px;
-      height: 128px;
-      border-radius: 24px;
+      width: 60px;
+      height: 60px;
+      border-radius: 12px;
       box-shadow: 0 8px 16px rgba(0,0,0,0.2);
   }
   button, select {
@@ -69,9 +69,9 @@
 <img src="favicon.ico" alt="App Icon" class="app-icon">
 <h1>robocam</h1>
 
-<button id="senderBtn" onclick="start('sender')">&#x1F4F9; Sender</button>
-<button id="receiverBtn" onclick="start('receiver')">&#x4A90E2; Receiver</button>
-<button id="stopBtn" onclick="stopAll()" style="display:none;">&#xD32F2F; Stop</button>
+<button id="senderBtn" onclick="start('sender')">Sender</button>
+<button id="receiverBtn" onclick="start('receiver')">Receiver</button>
+<button id="stopBtn" onclick="stopAll()" style="display:none;">Stop</button>
 
 <select id="cameraSelect" style="display:none;"></select>
 
@@ -101,8 +101,8 @@ async function start(role) {
   receiverBtn.disabled = true;
 
   // Klarer Text statt Fragezeichen
-  senderBtn.textContent = "&#x1F4F9; Sender";
-  receiverBtn.textContent = "&#x4A90E2; Empfänger";
+  senderBtn.textContent = "Sender";
+  receiverBtn.textContent = "Receiver";
 
   if (role === 'sender') senderBtn.classList.add('active');
   if (role === 'receiver') receiverBtn.classList.add('active');
@@ -224,8 +224,8 @@ function stopAll() {
   receiverBtn.classList.remove('active');
 
   // Text zurücksetzen
-  senderBtn.textContent = "&#x1F4F9; Sender";
-  receiverBtn.textContent = "&#x4A90E2; Empfänger";
+  senderBtn.textContent = "Sender";
+  receiverBtn.textContent = "Receiver";
 
   document.getElementById('cameraSelect').style.display = 'none';
   stopBtn.style.display = 'none';

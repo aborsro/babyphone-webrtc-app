@@ -245,7 +245,7 @@ async function startLocalStreamAndOffer() {
       select.style.display = 'none';
     } catch (err) {
         console.error("[DEBUG] Fehler beim Starten:", err);
-		alert("Fehler beim Starten: kein Video, kein Audio");
+		alert("ERROR: app missing access to camera / microphone");
 	}
   }
 }

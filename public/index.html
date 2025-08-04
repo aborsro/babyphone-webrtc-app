@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Babyphone WebRTC App</title>
+<title>robocam</title>
 <style>
   body {
     font-family: sans-serif;
@@ -19,9 +19,11 @@
     font-size: 2em;
     color: #333;
   }
-  .logo {
-    width: 80px;
-    margin-bottom: 10px;
+ .app-icon {
+      width: 128px;
+      height: 128px;
+      border-radius: 24px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
   }
   button, select {
     font-size: 1.3em;
@@ -64,12 +66,12 @@
 </head>
 <body>
 
-<img src="https://dummyimage.com/80x80/4CAF50/ffffff.png&text=B" alt="Logo" class="logo" />
-<h1>Babyphone WebRTC</h1>
+<img src="favicon.ico" alt="App Icon" class="app-icon">
+<h1>robocam</h1>
 
-<button id="senderBtn" onclick="start('sender')">?? Sender</button>
-<button id="receiverBtn" onclick="start('receiver')">?? Empfänger</button>
-<button id="stopBtn" onclick="stopAll()" style="display:none;">?? Stoppen</button>
+<button id="senderBtn" onclick="start('sender')">&#x1F4F9; Sender</button>
+<button id="receiverBtn" onclick="start('receiver')">&#4A90E2; Empfänger</button>
+<button id="stopBtn" onclick="stopAll()" style="display:none;">&#D32F2F; Stoppen</button>
 
 <select id="cameraSelect" style="display:none;"></select>
 

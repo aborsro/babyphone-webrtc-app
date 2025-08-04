@@ -131,8 +131,18 @@ async function fillCameraSelect() {
 
 async function startLocalStreamAndOffer() {
   try {
-    const cameraId = document.getElementById('cameraSelect').value;
-    const constraints = { video: { deviceId: { exact: cameraId } } };
+    const select = document.getElementById('cameraSelect');
+    const cameraId = select.value;
+
+    let constraints;
+    if (select.options.length === 1) {
+      console.log("[DEBUG] Nur eine Kamera – starte ohne deviceId");
+      constraints = { video: true };
+    } else {
+      console.log("[DEBUG] Mehrere Kameras – benutze deviceId:", cameraId);
+      constraints = { video: { deviceId: { exact: cameraId } } };
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
     document.getElementById('localVideo').srcObject = stream;
     stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -144,6 +154,7 @@ async function startLocalStreamAndOffer() {
     console.error("[DEBUG] Fehler beim Zugriff auf Kamera oder Erstellen des Offers:", err);
   }
 }
+
 }
 </script>
 </body>

@@ -30,8 +30,8 @@
     gap: 8px;
   }
   .app-icon {
-    width: 20px;
-    height: 20px;
+    width: 60px;
+    height: 60px;
     border-radius: 12px;
     box-shadow: 0 8px 16px rgba(0,0,0,0.2);
   }
@@ -216,7 +216,8 @@ async function startLocalStreamAndOffer() {
     let constraints = (select.options.length === 1)
       ? { video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }
       : { video: { deviceId: { exact: cameraId }, width: { ideal: 1920 }, height: { ideal: 1080 } } };
-	    
+	  
+	  
     localStream = await navigator.mediaDevices.getUserMedia(constraints);
     document.getElementById('localVideo').srcObject = localStream;
     localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
@@ -231,25 +232,6 @@ async function startLocalStreamAndOffer() {
     console.error("[DEBUG] Fehler beim Starten:", err);
   }
 }
-
-
-async function startLocalStreamAndOffer() {
-  if (localOfferSent) return;
-  localOfferSent = true;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    document.getElementById('localVideo').srcObject = stream;
-    stream.getTracks().forEach(track => {
-      console.log("[DEBUG] Track hinzugefügt:", track.kind);
-      pc.addTrack(track, stream);
-    });
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    ws.send(JSON.stringify({ sdp: pc.localDescription }));
-  } catch (err) { console.error("[DEBUG] Kamera-/Audio-Fehler:", err); }
-}
-
-
 
 function stopAll() {
   console.log("[DEBUG] Stoppe alles");
